@@ -1,0 +1,11 @@
+.env
+*.key
+__pycache__/
+*.pyc
+
+# 個人研究筆記與各別 research,不屬於本 repo 範圍
+sxbet-api-research-*.md
+research/
+
+# macOS 螢幕截圖(手動放的原檔,整理過的在 docs/)
+Screenshot*.png
