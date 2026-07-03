@@ -121,7 +121,7 @@ class Tracker:
         self.opens = {}
         self.hist = {}
         self.updates = 0
-        self.last_msg = 0.0
+        self.last_recv = time.time()   # 上次從 websocket 收到任何 frame(含 ping)的時間
 
     def apply_orders(self, data):
         rows = data if isinstance(data, list) else (data.get("orders", [data]) if isinstance(data, dict) else [])
@@ -136,12 +136,10 @@ class Tracker:
             else:
                 self.book[oh] = o
         self.updates += 1
-        self.last_msg = time.time()
 
     def apply_score(self, data):
         if str(data.get("sportXEventId", data.get("sportXeventId", ""))) == self.ev:
             self.score = data
-            self.last_msg = time.time()
 
     def draw(self, connected):
         orders = list(self.book.values())
@@ -156,15 +154,21 @@ class Tracker:
 
         out = [CLEAR, top]
         # title
+        silence = time.time() - self.last_recv   # 距離上次收到任何 frame(含 ping)多久
         dot = f"{GRN}●{R}" if connected else f"{YLW}◌{R}"
         state = f"{GRN}已連線{R}" if connected else f"{YLW}連線中{R}"
-        ago = f"{time.time()-self.last_msg:.0f}s 前" if self.last_msg else "—"
+        if silence >= 10:   # 靜默警告:連 ping 都沒有,連線可能已死
+            dot = f"{RED}●{R}"
+            state = f"{RED}⚠ 已 {silence:.0f}s 未收到資料{R}"
+        ago = f"{silence:.0f}s 前"
         title = f"⚽ {BOLD}{WHT}{self.teams[0]} vs {self.teams[1]}{R}"
         meta = f"{dot} {state} {GREY}· push {self.updates} · {ago}{R}"
         out.append(wrap(pad(title, 34) + "  " + meta))
         # score
         s1 = self.score.get("teamOneScore", "–"); s2 = self.score.get("teamTwoScore", "–")
-        sig = [str(s1), str(s2)]   # 內容簽章(不含時鐘/計時,用來判斷是否需要重繪)
+        # 內容簽章(不含時鐘/計時,用來判斷是否需要重繪);靜默 bucket:每跨 10 秒觸發一次重繪,
+        # 讓「Xs 前」與警告在斷線時仍會更新,連線健康時 bucket 恆為 0,行為不變
+        sig = [str(int(silence // 10)), str(s1), str(s2)]
         per = PERIOD.get(self.score.get("currentPeriod", ""), self.score.get("currentPeriod", ""))
         clk = fmt_clock(self.score.get("periodTime", ""))
         scoreline = f"{BOLD}{YLW}{s1} – {s2}{R}   {CYN}{per} {clk}{R}" if self.score else f"{GREY}(等待 live-scores push){R}"
@@ -248,6 +252,7 @@ def run(ev, seconds):
         while True:
             try:
                 data_in = ws.recv()
+                tr.last_recv = time.time()   # 任何 frame(含 ping)都算「有收到資料」
                 for line in data_in.splitlines():
                     line = line.strip()
                     if not line:
@@ -280,6 +285,7 @@ def run(ev, seconds):
                 ws.settimeout(1.0)
                 connected = False
                 last_sig = None
+                tr.last_recv = time.time()   # 重連後重設靜默計時
                 continue
 
             if _poll_space():                      # 空白鍵切換暫停
@@ -291,6 +297,11 @@ def run(ev, seconds):
                     last_sig = None                 # 恢復後強制重繪
 
             now = time.time()
+            if now - tr.last_recv >= 45:   # 死連線(TCP 半開,recv 只會一直 timeout):主動關閉
+                try:
+                    ws.close()             # 下次 recv 拋 closed → 走上面既有重連分支
+                except Exception:
+                    pass
             if not paused and now - last_draw >= 1.0:
                 frame, sig = tr.draw(connected)
                 if sig != last_sig:                 # 只有內容變了才重繪(靜止時不重畫,方便選取)

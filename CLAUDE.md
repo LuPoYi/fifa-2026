@@ -77,6 +77,7 @@ python3 live_ws.py L19315552 [--seconds 0]
 → connect(帶 token)→ 訂 `order_book:event_{eventId}` + `fixtures:live_scores`
 → REST 抓初始全量 snapshot,再套用增量 order push(依 `orderHash` upsert,status≠ACTIVE 則移除)。
 用 `websocket-client` 套件(已 pip install)。server 送空 `{}` = ping,回 `{}`。斷線自動重連。
+**靜默偵測**:任何 frame(含 ping)都算收到;silence bucket(每 10 秒一格)進 sig,≥10s 頂列顯示紅色警告,≥45s 視為死連線主動 `ws.close()` 強制重連。
 **防止選取被打斷**:只有內容簽章(比分+各盤賠率/量,不含時鐘)變動才重繪;`sig` 相同就不重畫。
 另有**空白鍵暫停**(cbreak + `select` 非阻塞讀鍵)凍結畫面供滑鼠複製,再按恢復。走勢 sparkline **只在賠率變動時記點**(近 18 個變化點、cap 120、自動縮放),非歷史;本次連線期間累積。
 `live.py`(輪詢版)仍保留當免安裝 fallback。
