@@ -22,6 +22,7 @@
 | `sx.py` | 賽程與完整賠率板：獨贏、1X2、不輸（double chance）、讓分、大小、晉級，附 vig、可下注流動性與成交量（`--league` 可換聯賽） | `python3 sx.py games --days 4`<br>`python3 sx.py odds --date 2026-07-04` |
 | `live_ws.py` | 即時盤口 dashboard，走 **Centrifugo WebSocket** 推送（實測約每秒 4 次） | `python3 live_ws.py L19315552` |
 | `live.py` | 即時盤口 dashboard 的輪詢版，免金鑰、免安裝，可當 fallback | `python3 live.py L19315552` |
+| `watch_ev.py` | 盤中**下注警報監看**：比分 + 大小盤賠率 +（選填）API-Football 射門/xG/控球；進球或終場即時印出並退出（4 秒 debounce 防 feed 抖動/VAR 假訊號），設計成背景跑、觸發即通知 | `python3 watch_ev.py L19427178 1 0 1582681` |
 | `stats.py` | 球隊 WC2026 戰績，多來源**交叉驗證**（僅世界盃） | `python3 stats.py matchup "Mexico" "Ecuador"` |
 | `bracket.py` | 終端機**對戰表**：32 強 → 決賽全圖，含比分 / 時間 / 晉級國家（僅世界盃） | `python3 bracket.py` |
 
@@ -60,11 +61,13 @@ cp .env.example .env                        # stats.py / live_ws.py 需要金鑰
 
 - `FOOTBALL_DATA_TOKEN`：到 [football-data.org](https://www.football-data.org/client/register) 免費註冊，`stats.py` 會用到。
 - `SX_API_KEY`：在 [sx.bet](https://sx.bet) 帳號內產生，**只有 `live_ws.py` 的 WebSocket 需要**。
+- `APISPORTS_KEY`：到 [api-sports.io](https://dashboard.api-football.com/register) 免費註冊，**選用**，`watch_ev.py` 要顯示盤中射門/xG/控球數據時才用到（免費 100 req/日；同一人開多個免費帳號會被停權，用一個即可）。
 
 ## 資料來源
 
 - **SX Bet API**：賠率、訂單簿、成交、即時推送（Centrifugo WebSocket）。
 - **football-data.org（主源）** 搭配 **TheSportsDB（交叉驗證）**：球隊戰績，兩個來源比分一致才採用。
+- **API-Football（api-sports.io，選用）**：SX 沒有的**盤面/深度數據**（in-play 射門、射正、xG、控球、陣容、傷兵、時間軸），`watch_ev.py` 與盤中分析會用到。
 
 ## 設計原則與注意事項
 
