@@ -82,6 +82,15 @@ python3 live_ws.py L19315552 [--seconds 0]
 另有**空白鍵暫停**(cbreak + `select` 非阻塞讀鍵)凍結畫面供滑鼠複製,再按恢復。走勢 sparkline **只在賠率變動時記點**(近 18 個變化點、cap 120、自動縮放),非歷史;本次連線期間累積。
 `live.py`(輪詢版)仍保留當免安裝 fallback。
 
+### 事件監看版:`watch_ev.py`(盤中下注警報用)
+
+```bash
+python3 watch_ev.py <SX_eventId> <lastH> <lastA> [API-Football_fixtureId]
+# 例: python3 watch_ev.py L19427178 1 0 1582681
+```
+
+輕量的**盤中下注監看**(非 dashboard):每 `CYCLE`(180)秒印一次 STATUS(比分 + Over/Under 1.5·2.5 賠率 + 選填 API 數據),或**進球/終場即時印出並退出**——設計成由上層 `run_in_background` 啟動,退出後上層讀輸出、重新啟動接續(進球即通知的模式)。進球判定含 **4 秒 debounce**(防 feed 抖動/VAR 誤報,實測擋過假的倒退分)。API-Football 數據**只在要印出時呼叫一次**(省額度,別放迴圈每 10 秒打)。用於「賽前下注 → 盤中盯賠率移動找鎖利/對沖窗口」的工作流(見 middle-play skill)。
+
 ## 對戰表:`bracket.py`(終端機 knockout bracket,世界盃)
 
 `python3 bracket.py` → 畫出 32 強→16強→8強→4強→決賽的對戰樹,含各場比分、未賽場次顯示 `⏱ ~Nd/~Nh` 概略倒數、狀態,勝方自動晉級。
@@ -101,7 +110,12 @@ python3 stats.py team "Mexico"                 # 單隊
 
 - **主源 football-data.org**:免費 tier **已確認涵蓋 World Cup**;需免費 token(`X-Auth-Token` header,10 calls/min)。放在專案根 `.env` 的 `FOOTBALL_DATA_TOKEN`(已 gitignore)。
 - **交叉驗證源 TheSportsDB**:key `3` 免註冊即用,但**免費版覆蓋不完整**(整屆只回部分場次);資料正確,當比對用。
-- **API-Football**(選用,`APISPORTS_KEY`):免費 100 req/日,最完整(統計/陣容/xG)。
+- **API-Football**(api-sports.io v3,`APISPORTS_KEY` **已設定於 `.env`**):SX 沒有的**盤面/深度數據**都靠它。免費 100 req/日,**實測 WC2026 有 live 覆蓋**。base `https://v3.football.api-sports.io`,header `x-apisports-key`。用法:
+  - 先 `/fixtures?live=all` 從 `teams.*.name` 找到目標,拿 **API-Football fixture id**(≠ SX 的 eventId,如 Argentina-Egypt = SX `L19391927` / API `1576804`,兩邊要各自查)。
+  - **in-play 盤面**:`/fixtures/statistics?fixture=<id>` → 射正(Shots on Goal)/總射/禁區內外射門/控球%/傳球成功率/犯規/越位(⚠ 此 feed 有數十秒延遲,進球後統計會慢一拍)。
+  - **時間軸**:`/fixtures/events?fixture=<id>` → 進球/紅黃牌/換人/**PK 進失**(如實測抓到 Messi 21' Missed Penalty)。
+  - **賽前**:`/predictions`、`/fixtures/lineups`、`/injuries`、`/fixtures/headtohead`、`/fixtures/players`(個人評分/數據)。
+  - **省額度**:in-play 別每 3 分鐘拉滿;約每 3–6 分鐘或進球時一次,一場 ~15–33 次即夠(使用者一天只看一場)。盤中監看腳本 `watch_ev.py <SXid> <h> <a> <APIfixtureid>` 已能在每次回報夾帶「射正/總射/控球」。
 - 不適用:Understat(只有俱樂部聯賽)、FBref(無 API 只能爬)、OpenFootball(2026 無現成檔)。
 - 交叉驗證原則:同一場比分兩源一致才採信;`stats.py` 會自動比對並標 ⚠ mismatch。
 
